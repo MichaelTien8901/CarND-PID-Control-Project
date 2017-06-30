@@ -13,9 +13,9 @@ public:
   /*
   * Coefficients
   */ 
-  double Kp;
-  double Ki;
-  double Kd;
+  double Kp_;
+  double Ki_;
+  double Kd_;
 
   /*
   * Constructor
@@ -41,6 +41,10 @@ public:
   * Calculate the total PID error.
   */
   double TotalError();
+  /*
+   * Reset pid
+   */
+  void Reset();
 };
 
 #endif /* PID_H */

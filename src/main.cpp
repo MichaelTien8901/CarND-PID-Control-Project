@@ -28,14 +28,45 @@ std::string hasData(std::string s) {
   return "";
 }
 
-int main()
+void RestartSimulator(uWS::WebSocket<uWS::SERVER> ws){
+  std::string reset_msg = "42[\"reset\",{}]";
+  ws.send(reset_msg.data(), reset_msg.length(), uWS::OpCode::TEXT);
+}
+class TRAINING {
+public:
+  int steps;
+  int count;
+  TRAINING(int aSteps ): count(0)
+  {
+    steps = aSteps;
+  }
+  void reset(void) {
+    count = 0;
+  }
+  bool tick()
+  {
+    return count++ >= steps;
+  }
+};
+
+int main(int argc, char *argv[])
 {
   uWS::Hub h;
 
-  PID pid;
+  PID steering_pid;
+  PID throttle_pid;
   // TODO: Initialize the pid variable.
+  double InitKp = -0.1;
+  double InitKd = 0;
+  double InitKi = -0.0001;
+  steering_pid.Init(InitKp, InitKi, InitKd);
 
-  h.onMessage([&pid](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  TRAINING training(1000);
+  // throttle pid for specified speed
+  double set_speed = 25.0; 
+  throttle_pid.Init(0.1, 0.002, 0); // borrow from behavior clone project
+
+  h.onMessage([&steering_pid, &throttle_pid, &set_speed, &training](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -57,17 +88,40 @@ int main()
           * NOTE: Feel free to play around with the throttle and speed. Maybe use
           * another PID controller to control the speed!
           */
-          
+          steering_pid.UpdateError(cte);
+          steer_value = steering_pid.TotalError();
+          /* throttle pid error */
+          double throttle_error = set_speed - speed;
+          throttle_pid.UpdateError(throttle_error);
+          double throttle_value = throttle_pid.TotalError();
+
+          if ( steer_value > 1) {
+            steer_value = 1;
+            throttle_value = 0; // brake ...
+          } else if ( steer_value < -1 ) {
+            steer_value = -1;
+            throttle_value = 0;
+          }
           // DEBUG
           std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = 0.3;
+//          msgJson["throttle"] = 0.3;
+          msgJson["throttle"] = throttle_value;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
+#define Uses_TRAINING
+#ifdef  Uses_TRAINING
+          if ( training.tick()) {
+              RestartSimulator(ws);
+              training.reset();
+              throttle_pid.Reset();
+              steering_pid.Reset();
+          }
         }
+#endif        
       } else {
         // Manual driving
         std::string msg = "42[\"manual\",{}]";
