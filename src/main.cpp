@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
   uWS::Hub h;
 
   PID throttle_pid;
-  throttle_pid.Init(0.1, 0.002, 0); // borrow from behavior clone project
+  throttle_pid.Init(0.2, 0.0001, 3.0); // borrow from behavior clone project
   // throttle pid for specified speed
   double set_speed = 30.0; 
   bool enable_twiddle = false;
